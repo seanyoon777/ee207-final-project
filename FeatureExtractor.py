@@ -10,6 +10,10 @@
 from Globals import *
 # -------------------------------------------------------------------------------------------------
 
+
+# -------------------------------------------------------------------------------------------------
+# Frequency-based filtering
+# -------------------------------------------------------------------------------------------------
 def butterworth_filter(dat: np.ndarray, filt_type: str, Wn: Union[Tuple, float, int], fs: int, ord: int=4):
     """
     Filters neural data for input frequency band. Uses a non-causal digital butterworth IIR filter 
@@ -73,6 +77,11 @@ def downsample(dat: np.ndarray, decimate_fw: int, fs: int):
     """
     return dat[::decimate_fw], int(fs/decimate_fw)
 
+
+
+# -------------------------------------------------------------------------------------------------
+# Re-referencing operations (LRR, CAR)
+# -------------------------------------------------------------------------------------------------
 @nb.jit(nopython=True)
 def get_car_weights(dat: np.ndarray): 
     """Gets CAR weights for single array recording"""
@@ -119,7 +128,8 @@ def lstsq_pseudoinverse(X: np.ndarray, y: np.ndarray):
     W = np.linalg.solve(X.T.dot(X), X.T.dot(y)) 
     return W
     
-    
+
+@nb.jit(nopython=True)
 def get_lrr_weights(dat: np.ndarray, fs: int, max_seconds: int=0): 
     """Gets LRR weights for single array recording"""
     n_samples, n_channels = dat.shape
@@ -157,6 +167,7 @@ def get_lrr_weights(dat: np.ndarray, fs: int, max_seconds: int=0):
     return weights
 
 
+@nb.jit(nopython=True)
 def lrr_denoise(dat: np.ndarray, weights: np.ndarray): 
     """Denoises single array using LRR"""
     dat_array = np.ascontiguousarray(dat)
@@ -164,6 +175,7 @@ def lrr_denoise(dat: np.ndarray, weights: np.ndarray):
     return dat_array - np.dot(dat_array, weights)
     
     
+@nb.jit(nopython=True)
 def lrr(dat: np.ndarray, n_arrays: int, n_electrodes: int, fs: int, max_seconds: int, weights_dat=None): 
     """
     Applies common average referencing (CAR) to [samples x channels] shape array of neural data
@@ -207,7 +219,10 @@ def get_thresholds(dat: np.ndarray, multiplier: float=-4.5):
     
     return thresholds*multiplier
     
-    
+
+# -------------------------------------------------------------------------------------------------
+# Threshold crossing count extraction
+# -------------------------------------------------------------------------------------------------
 @nb.jit(nopython=True)
 def count_spikes(dat: np.ndarray, fs: int, bin_size: int, shift_size: int, multiplier: float=-4.5,
                  from_above: bool=True): 
