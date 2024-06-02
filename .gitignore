@@ -1,0 +1,53 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# IPython notebook checkpoints and sandbox files 
+.ipynb_checkpoints
+**/.ipynb_checkpoints
+scratch.ipynb
+**/scratch.ipynb 
+
+# Visual Studio Code files
+.vscode
+.vs
+
+# PyCharm files
+.idea
+
+# Eclipse Project settings
+*.*project
+.settings
+
+# Sublime Text settings
+*.sublime-workspace
+*.sublime-project
+
+# Editor temporaries
+*.swn
+*.swo
+*.swp
+*.swm
+*.asv
+*~
+
+# macOS dir files
+.DS_Store
+**/build
+Archive/*
+
+# Matlab
+*.asv
+
+# Experiment results 
+/Results
+**/Results
+
+# Virtual environment directories
+**/env
+/env
+
+# Neurobench directory 
+/neurobench
