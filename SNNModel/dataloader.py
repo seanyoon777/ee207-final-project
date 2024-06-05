@@ -1,54 +1,66 @@
-import scipy.io as scio
+import h5py
 import numpy as np
+import torch
+from torch.utils.data import Subset
+from neurobench.datasets import PrimateReaching
+
+data_path = './data/indy_20160630_01.mat'
 
 
 class Dataloader(object):
 
     def __init__(self):
-        train_kin_data = scio.loadmat('./data/2019-11-11-S2.mat')['train_Y']
-        train_neural_data = scio.loadmat('./data/2019-11-11-S2.mat')['train_X']
 
-        # test_kin_data = scio.loadmat('./data/2019-11-11-S2.mat')['train_Y']
-        # test_neural_data = scio.loadmat('./data/2019-11-11-S2.mat')['train_X']
-        #
-        # train_kin_data = train_kin_data[:, 0:2500]
-        # train_neural_data = train_neural_data[:, 0:2500]
-        #
-        # test_kin_data = test_kin_data[:, 2500:3925]
-        # test_neural_data = test_neural_data[:, 2500:3925]
+        pr_dataset = PrimateReaching(file_path='data',
+                                     filename="indy_20160630_01.mat",
+                                     num_steps=1,
+                                     train_ratio=0.5,
+                                     bin_width=0.004,
+                                     biological_delay=0,
+                                     download=False)
 
-        test_kin_data = scio.loadmat('./data/2019-11-11-S2.mat')['test_Y']
-        test_neural_data = scio.loadmat('./data/2019-11-11-S2.mat')['test_X']
+        print("Loaded pr dataset")
 
-        # train_kin_data = train_kin_data[0:2, :]
-        # test_kin_data = test_kin_data[0:2, :]
-        # train_kin_data = scio.loadmat('./train/KinData1.mat')['KinData']
-        # train_neural_data = scio.loadmat('./train/NeuralData1.mat')['NeuralData']
-        #
-        # test_kin_data = scio.loadmat('./test/KinData1.mat')['KinData']
-        # test_neural_data = scio.loadmat('./test/NeuralData1.mat')['NeuralData']
 
-        # 9799
-        # train_kin_data = scio.loadmat('./ob_avoid_succ/2014031201.mat')['KinData']
-        # train_neural_data = scio.loadmat('./ob_avoid_succ/2014031201.mat')['NeuralData']
-        #
-        # train_kin_data = train_kin_data[:, 0:4500]
-        # train_neural_data = train_neural_data[:, 0:4500]
-        # #
-        # # # 10402
-        # test_kin_data = scio.loadmat('./ob_avoid_succ/2014031201.mat')['KinData']
-        # test_neural_data = scio.loadmat('./ob_avoid_succ/2014031201.mat')['NeuralData']
-        #
-        # test_kin_data = test_kin_data[:, 4500:9000]
-        # test_neural_data = test_neural_data[:, 4500:9000]
+# TODO: are spikes available for different samples?
+        with h5py.File(data_path, 'r') as data:
+            # Extract the data
+            timesteps = torch.tensor(np.array(data['t'])).flatten()  # Ensure t is a 1D array
+            finger_pos = torch.tensor(np.array(data['finger_pos']).T)  # Ensure proper shape and convert to PyTorch tensor
 
-        self.trainY = np.transpose(train_kin_data)
-        t_mean = np.mean(self.trainY, axis=0)
-        t_std = np.std(self.trainY, axis=0)
+            # Determine the number of samples (n) and units (k)
+            n = len(timesteps)
+            k = len(data['spikes'][0])
+
+            # Initialize the nxk array with zeros
+            spike_matrix = np.zeros((n, k), dtype=np.float32)
+
+            # Populate the spike_matrix while reading the spike data
+            for unit_idx, channel_ref in enumerate(data['spikes'][0]):
+                channel = data[channel_ref]  # Dereference the channel
+                for unit_ref in channel:
+                    unit_spike_times = np.array(
+                        unit_ref).flatten()  # Dereference the unit spike times and flatten
+
+                    spike_indices = np.searchsorted(timesteps, unit_spike_times)
+                    spike_indices = spike_indices[spike_indices < n]  # Ensure indices are within bounds
+                    spike_matrix[spike_indices, unit_idx] = 1
+
+        train_kin_data = finger_pos[pr_dataset.ind_train]
+        test_kin_data = finger_pos[pr_dataset.ind_test]
+
+        train_neural_data = spike_matrix[pr_dataset.ind_train]
+        test_neural_data = spike_matrix[pr_dataset.ind_test]
+
+
+        # Load and normalize the data
+        self.trainY = np.transpose(train_kin_data.numpy())
+        t_mean = np.mean(self.trainY, axis=1, keepdims=True)
+        t_std = np.std(self.trainY, axis=1, keepdims=True)
 
         self.trainY = np.transpose((self.trainY - t_mean) / t_std)
 
-        self.testY = np.transpose(test_kin_data)
+        self.testY = np.transpose(test_kin_data.numpy())
         self.testY = np.transpose((self.testY - t_mean) / t_std)
 
         self.trainX = train_neural_data

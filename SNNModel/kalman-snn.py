@@ -18,11 +18,12 @@ dataloader = Dataloader()
 kalman = Kalman()
 
 trainX, trainY, testX, testY = dataloader.getData()
-ChN = np.where(np.sum(trainX, axis=1) != 0)
-trainX = np.squeeze(trainX[ChN, :])
-testX = np.squeeze(testX[ChN, :])
+ChN = np.where(np.sum(trainX, axis=0) != 0) #filter out empty channels
+trainX = np.squeeze(trainX[:, ChN])
+testX = np.squeeze(testX[:, ChN])
 
 A_0, B_0 = kalman.calculate(trainX, trainY, pool=pool, dt=dt, tau=tau)
+print("calculated filter matrices")
 
 # A_1, B_1 = kalman.calculate(trainX, trainY, pool=1, dt=dt, tau=tau)
 
@@ -57,17 +58,20 @@ def update(x):
     Externalmat = np.mat(x[2:4]).T
     Inputmat = np.mat(x[0:2]).T
 
+    # TODO: why are they using CT transition matrices for DT update?
     next_state = np.squeeze(np.asarray(A_0 * Inputmat + Externalmat))
     return next_state
 
 
 with model:
+    # direct neurons do not model spiking dynamics
     Dir_Nurons = nengo.Ensemble(
         1,
         dimensions=2 + 2,
         neuron_type=nengo.Direct()
     )
 
+    # Biological neurons
     LIF_Neurons = nengo.Ensemble(
         N_A,
         dimensions=2,
@@ -76,11 +80,13 @@ with model:
         neuron_type=lifRate_neuron
     )
 
+    # TODO: we need to know sampling frequency for our own network
+    # The origin outputs the kinematic data at the corresponding time
     origin = nengo.Node(lambda t: testY[:, int(50 * t)])  # dt = 100ms
-    origin_probe = nengo.Probe(origin)
+    origin_probe = nengo.Probe(origin) #used to collect data from the origin node
 
     state_func = Piecewise({
-        0.0: [0.0, 0.0],
+        0.0: [0.0, 0.0], #ic. zero
         dt: np.squeeze(np.asarray(np.mat([testY[0, 0], testY[1, 0]]).T)),
         2 * dt: [0.0, 0.0]
     })
@@ -93,6 +99,7 @@ with model:
 
     # conn0 = nengo.Connection(state, Dir_Nurons)
 
+    # Define feedback loop and run sim
     conn0 = nengo.Connection(state, Dir_Nurons[0:2])
     #
     conn1 = nengo.Connection(external_input, Dir_Nurons[2:4])
@@ -108,6 +115,7 @@ with model:
 
     neurons_out = nengo.Probe(LIF_Neurons[0:2])
 
+    print("starting sim")
     with nengo.Simulator(model, dt=dt) as sim:
         # for i in range(18000):
         #     sim.step()
