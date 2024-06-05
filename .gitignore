@@ -51,3 +51,7 @@ Archive/*
 
 # Neurobench directory 
 /neurobench
+
+# Data 
+/Data
+**/Data

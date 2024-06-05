@@ -2,7 +2,7 @@
 # FeatureExtractor.py 
 # -------------------------------------------------------------------------------------------------
 # Code for preprocessing and spike counting neural data 
-# Written by Sean Yoon [sean777@stanford.edu]. 
+# Sean Yoon [sean777@stanford.edu], Nika Zahedi [nzahedi@stanford.edu]
 # -------------------------------------------------------------------------------------------------
 # Created     : 2024-06-01
 # Last update : 2024-06-01
