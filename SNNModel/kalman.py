@@ -1,22 +1,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-dim = 2
+dim = 6
 
 
 class Kalman(object):
     def __init__(self):
+        # DT transition matrices
         self.M_DT_x = None
         self.M_DT_y = None
 
+        # CT transition matrices
         self.M_CT_x = None
         self.M_CT_y = None
 
-        self.A_ = None
-        self.C_ = None
-        self.W_ = None
-        self.Q_ = None
-        self.P_ = None
+        self.A_ = None # state transition matrix: y_{t+1} = A * y_t
+        self.C_ = None # observation matrix: neural_data = C * kin_data + noise
+        self.W_ = None # process noise covariance matrix for state transition matrix
+        self.Q_ = None # observation noise covariance matrix
+        self.P_ = None # state covariance matrix
 
     def calculate(self, trainX, trainY, pool, dt, tau):
 
@@ -30,6 +32,7 @@ class Kalman(object):
         :return:
         """
 
+        # M: number of kinematic features, T: number of time steps
         M, T = np.shape(trainY)
 
         # trainY_new = np.ones((M + 1, T))
@@ -41,10 +44,14 @@ class Kalman(object):
         # elif pool == 1:
         #     trainY_new = np.mat(trainY[1, :])
         #
-        A, y, e = self.least_squre(trainY_new[:, 0:-1], trainY_new[:, 1:], 0.1)
+
+        # find A, the state transition matrix such that Ay_{t} = y_{t+1}
+        A, y, e = self.least_square(trainY_new[:, 0:-1], trainY_new[:, 1:], 0.1)
+        # process noise covariance matrix
         W = np.dot(e, np.transpose(e)) / (T - 1)
 
-        C, y, e = self.least_squre(trainY_new, trainX, 0.1)
+        # Model neural_data = C * kin_data + noise
+        C, y, e = self.least_square(trainY_new, trainX, 0.1)
         Q = np.dot(e, np.transpose(e)) / T
 
         A = np.mat(A)
@@ -59,29 +66,37 @@ class Kalman(object):
 
         self.P_ = np.mat(trainY_new) * np.mat(trainY_new).T / T
 
+        # Calculate Kalman Gain
         K = np.linalg.pinv(np.eye(dim, dim) + W * C.T * Q.I * C) * W * C.T * Q.I
 
+        # estimated_kin_data_{t} = M_DT_x * estimated_kin_data_{t-1} + M_DT_y * true_kin_data
+        # DT state transition matrix
         self.M_DT_x = (np.eye(dim, dim) - K * C) * A
         self.M_DT_y = K
 
+        # Find the CT state transition matrices
         Z, V = np.shape(self.M_DT_x)
         self.M_CT_x = (self.M_DT_x - np.eye(Z, V)) / dt
         self.M_CT_y = self.M_DT_y / dt
 
+        # Add time constant
         A_ = tau * self.M_CT_x + np.eye(Z, V)
         B_ = tau * self.M_CT_y
 
         return A_, B_
 
-    def least_squre(self, x, d, alpha):
+    def least_square(self, x, d, alpha):
+        # x: input, d: measured output, alpha: regularization parameter
+        # W: weights, y: estimated output, e: error
+        # Model: d = Wx + e
         M, T = np.shape(x)
 
-        R = np.dot(x, x.T) / T
-        P = np.dot(x, d.T) / T
+        R = np.dot(x, x.T) / M
+        P = np.dot(x, d.T) / M
         C, D = np.shape(R)
         W = np.dot(np.linalg.pinv(R + alpha * np.eye(C, D)), P)
         W = np.transpose(W)
-        y = np.dot(W, x)
+        y = np.matmul(W, x)
         e = d - y
 
         return W, y, e

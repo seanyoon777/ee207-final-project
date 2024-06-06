@@ -1,17 +1,18 @@
-import h5py, os, sys    # i/o libraries
+import h5py
 import numpy as np
 import torch
 from torch.utils.data import Subset
-sys.path.append(os.path.join(os.getcwd(), 'neurobench'))
 from neurobench.datasets import PrimateReaching
 
+data_path = './data/indy_20160630_01.mat'
+
+
 class Dataloader(object):
-    def __init__(self, data_path='./data/indy_20160630_01.mat'):
-        file_path = data_path.split('/')[:-2]
-        filename  = data_path.split('/')[-1]
-        
-        pr_dataset = PrimateReaching(file_path=file_path,
-                                     filename=filename,
+
+    def __init__(self):
+
+        pr_dataset = PrimateReaching(file_path='data',
+                                     filename="indy_20160630_01.mat",
                                      num_steps=1,
                                      train_ratio=0.5,
                                      bin_width=0.004,
@@ -78,4 +79,4 @@ class Dataloader(object):
             return self.testX
 
     def getData(self):
-        return self.trainX, self.trainY, self.testX, self.testY
+        return self.trainX.T, self.trainY.T, self.testX.T, self.testY.T
