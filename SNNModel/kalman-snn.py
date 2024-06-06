@@ -10,7 +10,7 @@ dt = 0.008  # simulation time step
 t_rc = 0.001  # membrane RC time constant
 t_ref = 0.0001  # refractory period
 tau = 0.001  # synapse time constant for standard first-order lowpass filter synapse
-N_A = 10000  # number of neurons in first population
+N_A = 1000  # number of neurons in first population
 rate_A = 200, 400  # range of maximum firing rates for population A
 sampling_rate = 250  # Hz: sampling rate of the data
 pool = 0
@@ -64,7 +64,7 @@ def update(x):
     next_state = np.squeeze(np.asarray(A_0 @ Inputmat + Externalmat))
     return next_state.tolist()
 
-def state_func(t):
+def state_func_2(t):
     """
     Provide continuous state updates from testY.
     """
@@ -75,9 +75,9 @@ def state_func(t):
         return np.zeros(num_states).tolist()  # Return zeros if t exceeds testY length
     return np.squeeze(np.asarray(testY[:, index])).tolist()
 
-with model:
+with (model):
     # Direct neurons do not model spiking dynamics
-    Dir_Nurons = nengo.Ensemble(
+    Dir_Neurons = nengo.Ensemble(
         1,
         dimensions=num_states * 2,  # 6 for state + 6 for external input
         neuron_type=nengo.Direct()
@@ -96,11 +96,11 @@ with model:
     origin = nengo.Node(lambda t: testY[:, int(sampling_rate * t)])  # Ensure indexing is within bounds
     origin_probe = nengo.Probe(origin)  # Used to collect data from the origin node
 
-    # state_func = Piecewise({
-    #     0.0: [0.0] * num_states,  # Initial condition: zero for all 6 dimensions
-    #     dt: np.squeeze(np.asarray(testY[: , 0])),  # First state update from testY
-    #     2 * dt: [0.0] * num_states  # Another state update (can be modified as needed)
-    # })
+    state_func = Piecewise({
+        0.0: [0.0] * num_states,  # Initial condition: zero for all 6 dimensions
+        dt: np.squeeze(np.asarray(testY[: , 0])),  # First state update from testY
+        2 * dt: [0.0] * num_states  # Another state update (can be modified as needed)
+    })
 
     state = nengo.Node(output=state_func)
     state_probe = nengo.Probe(state)
@@ -109,10 +109,16 @@ with model:
     external_input_probe = nengo.Probe(external_input)
 
     # Define feedback loop and run sim
-    conn0 = nengo.Connection(state, Dir_Nurons[:num_states])
-    conn1 = nengo.Connection(external_input, Dir_Nurons[num_states:])
-    conn2 = nengo.Connection(Dir_Nurons, LIF_Neurons, function=update, synapse=tau)
-    conn3 = nengo.Connection(LIF_Neurons, Dir_Nurons[:num_states])
+    # conn0 = nengo.Connection(state, Dir_Nurons[:num_states])
+    # conn1 = nengo.Connection(external_input, Dir_Nurons[num_states:])
+    # conn2 = nengo.Connection(Dir_Nurons, LIF_Neurons, function=update, synapse=tau)
+    # conn3 = nengo.Connection(LIF_Neurons, Dir_Nurons[:num_states])
+
+    conn0 = nengo.Connection(state, Dir_Neurons[:num_states])
+    conn1 = nengo.Connection(LIF_Neurons, Dir_Neurons[:num_states])
+    conn2 = nengo.Connection(external_input, Dir_Neurons[num_states:])
+    conn3 = nengo.Connection(Dir_Neurons, LIF_Neurons, function=update, synapse=tau)
+    conn4 = nengo.Connection(LIF_Neurons, LIF_Neurons, synapse=tau)
 
     neurons_out = nengo.Probe(LIF_Neurons)
 
