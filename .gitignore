@@ -53,5 +53,5 @@ Archive/*
 /neurobench
 
 # Data 
-/data
+/SNNModel/data
 **/data

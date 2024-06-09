@@ -59,9 +59,14 @@ class Dataloader(object):
         t_std = np.std(self.trainY, axis=1, keepdims=True)
 
         self.trainY = np.transpose((self.trainY - t_mean) / t_std)
+        ones_column = np.ones((self.trainY.shape[0], 1))
+        self.trainY = np.concatenate((self.trainY, ones_column), axis=1)
 
         self.testY = np.transpose(test_kin_data.numpy())
         self.testY = np.transpose((self.testY - t_mean) / t_std)
+
+        ones_column = np.ones((self.testY.shape[0], 1))
+        self.testY = np.concatenate((self.testY, ones_column), axis=1)
 
         self.trainX = train_neural_data
         self.testX = test_neural_data

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-dim = 6
+dim = 7
 
 
 class Kalman(object):
