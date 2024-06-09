@@ -51,6 +51,7 @@ Archive/*
 
 # Neurobench directory 
 /neurobench
+/neurobench1
 
 # Data 
 /SNNModel/data
