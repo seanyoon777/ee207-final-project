@@ -13,7 +13,7 @@ from Globals import *
 # -------------------------------------------------------------------------------------------------
 
 class KalmanDecoder: 
-    def __init__(self, C=1, pred_dims=2): 
+    def __init__(self, C=1, pred_dims=3): 
         """
         Initializes the Kalman filter decoder class. 
 
@@ -44,22 +44,18 @@ class KalmanDecoder:
         X1 = X[:, :-1]
         X2 = X[:, 1:]
         A = lstsq_optimized(X1 @ X1.T, X1 @ X2.T).T 
-        print("Transition matrix calculated")
         
         # calculate covariance of transition matrix
         residual = X2 - A @ X1
         W = residual @ residual.T / X1.shape[1] / C
-        print("Covariance matrix calculated")
 
         # calculates the measurement matrix from X_t to X_{t+1}
         # This linearly relates hand state to neural firing
         H = lstsq_optimized(X @ X.T, X @ Z.T).T
-        print("Measurement matrix calculated")
 
         # calculate the covariance of the measurement matrix
         residual = Z - H @ X
         Q = residual @ residual.T / X.shape[1]
-        print("Measurement of covariance matrix calculated")
         
         return A, W, H, Q 
     
