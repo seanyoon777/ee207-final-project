@@ -17,16 +17,13 @@ sampling_rate = 250  # Hz: sampling rate of the data
 pool = 0
 N = 10 # state update interval
 
-mses = np.zeros((10, 7))
+# mses = np.zeros((10, 7))
 
-dataloader = Dataloader()
+dataloader = Dataloader(spike_units='all', normalize=False, center_zero=True, bin_size=25, bad_ch_cutoff=1)
 kalman = Kalman()
 
 trainX, testX, trainY, testY, trainY_cursor, testY_cursor = dataloader()
 trainX, testX, trainY, testY, trainY_cursor, testY_cursor = trainX.T, testX.T, trainY.T, testY.T, trainY_cursor.T, testY_cursor.T
-ChN = np.where(np.sum(trainX, axis=1) != 0) #filter out empty channels
-trainX = np.squeeze(trainX[ChN, :])
-testX = np.squeeze(testX[ChN, :])
 
 num_channels = trainX.shape[0]
 num_states = trainY.shape[0]
@@ -130,6 +127,8 @@ def run_kalman_decoder():
 
         # Calculate correlation and RMSE
         time_range = sim.trange()
+        
+        return sim.data[neurons_out]
         for i in range(num_states):
             rmse_i = np.sqrt(np.mean(np.square(sim.data[neurons_out][:, i] - sim.data[origin_probe][:, i])))
             mses[int((N-1)/4), i] = rmse_i
