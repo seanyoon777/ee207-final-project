@@ -60,12 +60,11 @@ class Dataloader:
                 trainX, testX = self._normalize(trainX, testX)
             if self.center_zero: 
                 trainY, testY = self._center_zero(trainY, testY)
-                
+
             # exclude channels that are too sparse 
             trainX, testX = self._exclude_channels(trainX, testX)
             
             self.data = trainX, testX, trainY, testY, trainY_cursor, testY_cursor
-            self.pos  = train_finger_pos, test_finger_pos, train_cursor_pos, test_cursor_pos 
             
 
     def _get_spike_mat(self, data): 
@@ -126,12 +125,15 @@ class Dataloader:
         n_samples, n_outputs = y.shape
         n_bins = int(np.ceil(n_samples / self.bin_size))
         
+        y_pos = np.zeros(shape=(n_bins, n_outputs), dtype=np.float32)
         y_vel = np.zeros(shape=(n_bins, n_outputs), dtype=np.float32)
         for bin, i in enumerate(range(0, n_samples, self.bin_size)): 
             binned_y = y[i:i+self.bin_size]
             y_vel[bin] = binned_y[-1] - binned_y[0]
+            y_pos[bin] = binned_y[-1]
         
-        return y
+        y_out = np.vstack([y_pos, y_vel])
+        return y_out
         
     
     def _normalize(self, trainX, testX): 
