@@ -22,7 +22,8 @@ mses = np.zeros((10, 7))
 dataloader = Dataloader()
 kalman = Kalman()
 
-trainX, trainY, testX, testY = dataloader.getData()
+trainX, testX, trainY, testY, trainY_cursor, testY_cursor = dataloader()
+trainX, testX, trainY, testY, trainY_cursor, testY_cursor = trainX.T, testX.T, trainY.T, testY.T, trainY_cursor.T, testY_cursor.T
 ChN = np.where(np.sum(trainX, axis=1) != 0) #filter out empty channels
 trainX = np.squeeze(trainX[ChN, :])
 testX = np.squeeze(testX[ChN, :])
@@ -31,6 +32,7 @@ num_channels = trainX.shape[0]
 num_states = trainY.shape[0]
 
 A_0, B_0 = kalman.calculate(trainX, trainY, pool=pool, dt=dt, tau=tau)
+# np.savez_compressed('processed_data.npz', testX=testX, testY=testY, testY_cursor=testY_cursor, A_0=A_0, B_0=B_0)
 print("calculated filter matrices")
 
 # A_1, B_1 = kalman.calculate(trainX, trainY, pool=1, dt=dt, tau=tau)
@@ -67,17 +69,6 @@ def update(x):
     # Perform the Kalman Filter state update
     next_state = np.squeeze(np.asarray(A_0 @ Inputmat + Externalmat))
     return next_state.tolist()
-
-def state_func_2(t):
-    """
-    Provide continuous state updates from testY.
-    """
-    if t == 0.0:
-        return np.zeros(num_states).tolist()  # Initial condition
-    index = int(sampling_rate * t)
-    if index >= testY.shape[1]:
-        return np.zeros(num_states).tolist()  # Return zeros if t exceeds testY length
-    return np.squeeze(np.asarray(testY[:, index])).tolist()
 
 def state_func(t):
     """
@@ -119,12 +110,6 @@ def run_kalman_decoder():
         origin = nengo.Node(lambda t: testY[:, int(sampling_rate * t)])  # Ensure indexing is within bounds
         origin_probe = nengo.Probe(origin)  # Used to collect data from the origin node
 
-        # state_func = Piecewise({
-        #     0.0: [0.0] * num_states,  # Initial condition: zero for all 6 dimensions
-        #     dt: np.squeeze(np.asarray(testY[: , 0])),  # First state update from testY
-        #     2 * dt: [0.0] * num_states  # Another state update (can be modified as needed)
-        # })
-
         state = nengo.Node(output=state_func)
         state_probe = nengo.Probe(state)
 
@@ -141,7 +126,7 @@ def run_kalman_decoder():
 
         print("starting sim for N = ", N)
         with nengo.Simulator(model, dt=dt) as sim:
-            sim.run(300)
+            sim.run(3)
 
         # Calculate correlation and RMSE
         time_range = sim.trange()
@@ -161,6 +146,12 @@ def run_kalman_decoder():
         # print(f"RMSE (Y): {rmse_y}")
 
         plt.figure()
+        plt.plot(sim.data[neurons_out][:, 0], sim.data[neurons_out][:, 1], label="Predicted trajectory", linewidth=0.5)
+        plt.plot(sim.data[origin_probe][:, 0], sim.data[origin_probe][:, 1], label="True trajectory", linewidth=0.5)
+        plt.legend()
+        plt.show()
+
+        plt.figure()
         fig, axes = plt.subplots(num_states, 1, figsize=(10, 2 * num_states), sharex=True)
         for i in range(num_states):
             axes[i].plot(time_range, sim.data[neurons_out][:, i], label="Decoded estimate", linewidth=0.5)
@@ -177,12 +168,14 @@ N_list = 4 * np.arange(1, 11)
 for N in N_list:
     run_kalman_decoder()
 
-plt.figure()
-fig, axes = plt.subplots(num_states, 10, figsize=(10, 20), sharex=True)
-for i in range(num_states):
-    axes[i].plot(N_list, mses[:, i], label=f"Dimension {i+1}")
-    axes[i].set_ylabel("RMSE")
-    axes[i].set_xlabel("N")
-    axes[i].legend()
-plt.tight_layout()
-plt.show()
+# run_kalman_decoder()
+
+# plt.figure()
+# fig, axes = plt.subplots(num_states, 10, figsize=(10, 20), sharex=True)
+# for i in range(num_states):
+#     axes[i].plot(N_list, mses[:, i], label=f"Dimension {i+1}")
+#     axes[i].set_ylabel("RMSE")
+#     axes[i].set_xlabel("N")
+#     axes[i].legend()
+# plt.tight_layout()
+# plt.show()
