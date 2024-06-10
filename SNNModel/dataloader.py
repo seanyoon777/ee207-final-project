@@ -8,7 +8,7 @@ data_path = './data/indy_20160630_01.mat'
 
 
 class Dataloader:
-    def __init__(self, spike_units='all', normalize=True, bin_size=1, bad_ch_cutoff=1):
+    def __init__(self, spike_units='all', normalize=True, center_zero=True, aggreagate_chs=True, bin_size=1, bad_ch_cutoff=1):
         """_summary_
 
         Args:
@@ -28,6 +28,8 @@ class Dataloader:
         
         self.spike_units   = spike_units 
         self.normalize     = normalize 
+        self.center_zero   = center_zero 
+        self.aggregate_chs = aggreagate_chs
         self.bin_size      = bin_size
         self.bad_ch_cutoff = bad_ch_cutoff
         
@@ -43,22 +45,27 @@ class Dataloader:
             
             # bin data
             if self.bin_size > 1: 
-                trainX, train_finger_pos, train_cursor_pos = self._bin_data(trainX, train_finger_pos, train_cursor_pos) 
-                testX, test_finger_pos, test_cursor_pos    = self._bin_data(testX, test_finger_pos, test_cursor_pos)  
-                print(f'Binned into {4*self.bin_size}ms intervals')
-            
+                trainX = self._bin_data(trainX)
+                testX  = self._bin_data(testX)
+
             # convert positions to velocity 
-            trainY, trainY_cursor = self._pos2vel(train_finger_pos, train_cursor_pos)
-            testY, testY_cursor   = self._pos2vel(test_finger_pos, test_cursor_pos)
+            trainY = self._pos2vel(train_finger_pos)
+            testY = self._pos2vel(test_finger_pos)
+            trainY_cursor = self._pos2vel(train_cursor_pos)
+            testY_cursor = self._pos2vel(test_cursor_pos)            
+            print(f'Binned into {4*self.bin_size}ms intervals')
             
             # normalize velocities if necessary 
             if self.normalize: 
-                trainY, testY = self._normalize(trainY, testY)
-            
+                trainX, testX = self._normalize(trainX, testX)
+            if self.center_zero: 
+                trainY, testY = self._center_zero(trainY, testY)
+                
             # exclude channels that are too sparse 
             trainX, testX = self._exclude_channels(trainX, testX)
             
             self.data = trainX, testX, trainY, testY, trainY_cursor, testY_cursor
+            self.pos  = train_finger_pos, test_finger_pos, train_cursor_pos, test_cursor_pos 
             
 
     def _get_spike_mat(self, data): 
@@ -104,7 +111,7 @@ class Dataloader:
         return train_neural, test_neural, train_finger_pos, test_finger_pos, train_cursor_pos, test_cursor_pos
         
         
-    def _bin_data(self, neural, finger_pos, cursor_pos): 
+    def _bin_data(self, neural): 
         n_samples, n_spikes = neural.shape
         n_bins = int(np.ceil(n_samples / self.bin_size))
         
@@ -112,31 +119,34 @@ class Dataloader:
         for bin, i in enumerate(range(0, n_samples, self.bin_size)): 
             X[bin] = np.mean(neural[i:i+self.bin_size], axis=0)
         
-        # select corresponding y velocities 
-        y_finger_pos = finger_pos[::self.bin_size]
-        y_cursor_pos = cursor_pos[::self.bin_size]
-        
-        return X, y_finger_pos, y_cursor_pos 
+        return X
 
 
-    def _pos2vel(self, y_finger_pos, y_cursor_pos): 
-        y_finger_vel = torch.gradient(y_finger_pos, dim=1)[0].numpy()
-        y_cursor_vel = torch.gradient(y_cursor_pos, dim=1)[0].numpy()
-        return y_finger_vel, y_cursor_vel 
+    def _pos2vel(self, y): 
+        n_samples, n_outputs = y.shape
+        n_bins = int(np.ceil(n_samples / self.bin_size))
+        
+        y_vel = np.zeros(shape=(n_bins, n_outputs), dtype=np.float32)
+        for bin, i in enumerate(range(0, n_samples, self.bin_size)): 
+            binned_y = y[i:i+self.bin_size]
+            y_vel[bin] = binned_y[-1] - binned_y[0]
+        
+        return y
+        
+    
+    def _normalize(self, trainX, testX): 
+        mean = np.mean(trainX, axis=0, keepdims=True)
+        std  = np.std(trainX, axis=0, keepdims=True)
+        
+        return (trainX - mean) / std, (testX - mean) / std
     
     
-    def _normalize(self, trainY, testY): 
-        trainY_T = np.transpose(trainY)
-        testY_T = np.transpose(testY)
+    def _center_zero(self, trainY, testY): 
+        print(trainY.shape)
+        mean = np.mean(trainY, axis=0, keepdims=True)
+        self.finger_mean_vel = mean 
+        return trainY - mean, testY - mean
         
-        mean = np.mean(trainY_T, axis=1, keepdims=True)
-        std  = np.std(trainY_T, axis=1, keepdims=True)
-        
-        trainY_norm = np.transpose((trainY_T - mean) / std)
-        testY_norm  = np.transpose((testY_T - mean) / std)
-        
-        return trainY_norm, testY_norm
-            
     
     def _exclude_channels(self, trainX, testX): 
         train_chs = np.sum(trainX, axis=0) > self.bad_ch_cutoff
